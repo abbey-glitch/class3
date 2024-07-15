@@ -19,7 +19,7 @@ server.use(express.static(path.join(__dirname, "public/")));
 const secretKey = crypto.randomBytes(64).toString("hex");
 server.use(session({
     secret: secretKey,
-    resave: false,
+    resave: true,
     saveUninitialized: true,
     cookie: {
         httpOnly: true,
@@ -55,11 +55,13 @@ server.post("/register", async(req, res)=>{
                     email:email
                 }
                 // res.send(secretKey)
-                jwt.sign(profile, "secretKey", (error, token)=>{
+                jwt.sign(profile, secretKey, (error, token)=>{
                     if(error){
                         res.send("validation issues")
                     }else{
-                        req.session.secret = secretKey
+                        req.session.secretKey = secretKey
+                        req.session.token = token
+                        res.cookie("usertoken", token)
                         // res.send({profile, token})
                         // res.send({
                         //     message:"registration successfull",
@@ -80,11 +82,14 @@ server.post("/register", async(req, res)=>{
     }
 })
 // login route
+server.get("/login", (req, res)=>{
+    res.render("login");
+})
 server.post("/login", (req, res)=>{
-
-    const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6ImphbWVzIiwicGFzc3dvcmQiOiIkMmIkMTAkSTZ6M2lMeVlVenVmbWxNaWZCM2FadUk3NTNTWkdycjZ4SlVtNzQ0NE11TEhZNDcxYm1nbmkiLCJlbWFpbCI6InNhbUBzYW0uY29tIiwiaWF0IjoxNzIxMDQ1NTIyfQ.ZsL1lu04RJiNAy9wXNyFnsWTTpeyCj-lr8vBzQG1i08"
     // toks = res.cookie("usertoken")
-    // console.log(req.cookie)
+    const secretKey = req.session.secretKey
+    const toks = req.session.token
+    console.log({"token":toks, "secretKey":secretKey})
     const password = req.body.password.trim();
     const email = req.body.email.trim();
     const profile = {
@@ -92,16 +97,21 @@ server.post("/login", (req, res)=>{
         email:email
     }
     // res.send(profile)
-    jwt.verify(token, "secretKey", (error, data)=>{
+    jwt.verify(toks, secretKey, (error, data)=>{
         if(error){
             res.send("invalid credentials")
         }else{
-           res.send(data)
+            // res.send(data)
+           res.render("dash", data)
         }
     })
     
 })
 // logout route
+server.post("/logout", (req, res)=>{
+    res.clearCookie("usertoken")
+    res.redirect("/login")
+})
 
 // create an instance of a running server
 server.listen(port, (error) => {
