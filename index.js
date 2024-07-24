@@ -12,6 +12,7 @@ const bodyParser = require("body-parser");
 const mongodb = require("mongodb");
 // import dotenv and read the content in it
 const dotenv = require("dotenv");
+const { log } = require("console");
 dotenv.config();
 const client = new mongodb.MongoClient(process.env.DB_URL);
 // use the imported middlewares/dependencies
@@ -73,9 +74,6 @@ server.post("/register", async(req, res)=>{
                         res.send("unable to insert")
                     }
                 }
-                // res.send(secretKey)
-                
-                // res.send(profile)
             }else{
                 res.send("invalid password match")
             }
@@ -122,17 +120,16 @@ server.get("/dash", (req, res)=>{
     // const usertoks = res.cookie("usertoken")
     const secretKey = req.session.secretKey
     const toks = req.session.token
-    console.log({"token":toks, "secretKey":secretKey})
-    res.render("dash");
-    //   jwt.verify(usertoks, secretKey, (error, data)=>{
-    //     if(error){
-    //         res.send("invalid credentials")
-    //     }else{
-    //         // res.send(data)
-    //         console.log(data);
-    //        res.render("dash", {data:data})
-    //     }
-    // }) 
+    // console.log({"token":toks, "secretKey":secretKey})
+      jwt.verify(toks, secretKey, (error, data)=>{
+        if(error){
+            res.send("invalid credentials")
+        }else{
+            // // res.send(data)
+            // console.log(data);
+           res.render("dash", {data:data})
+        }
+    }) 
 })
 // logout route
 server.post("/logout", (req, res)=>{
@@ -161,6 +158,40 @@ server.post("/uploader", upload.single('file1'), (req, res, next)=>{
     // }else{
     //     res.send("image size is ok")
     // }
+})
+
+// update profile
+server.get("/updateprofile", async(req, res)=>{
+    const oldemail = req.body.oldemail
+    const newemail = req.body.newemail
+    const db = await client.db(dbName).collection(table).updateOne({email:oldemail}, {$set:{email:newemail}})
+    // res.send(db)
+    let num = db.modifiedCount
+    if(num > 0){
+        res.send("profile updated")
+    }
+    res.send("unable to update")
+    
+})
+// delete route
+server.get("/deleteprofile", async(req, res)=>{
+    res.render("del")
+    })
+server.post("/deleteprofile", async(req, res)=>{
+    const email = req.query.email
+    const db = await client.db(dbName).collection(table).deleteOne({email:email})
+    let num = db.deletedCount
+    if(num > 0){
+        res.send({
+            message:"unable to delete",
+            status:"error"
+        })
+    }else{
+        res.send({
+            message:"deleted successfully",
+            status:"success"
+        })
+    }
 })
 // create an instance of a running server
 server.listen(port, (error) => {
