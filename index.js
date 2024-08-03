@@ -161,24 +161,30 @@ server.post("/uploader", upload.single('file1'), (req, res, next)=>{
 })
 
 // update profile
-server.get("/updateprofile", async(req, res)=>{
+server.post("/updateprofile", async(req, res)=>{
     const oldemail = req.body.oldemail
     const newemail = req.body.newemail
     const db = await client.db(dbName).collection(table).updateOne({email:oldemail}, {$set:{email:newemail}})
     // res.send(db)
-    let num = db.modifiedCount
-    if(num > 0){
-        res.send("profile updated")
-    }
-    res.send("unable to update")
+    console.log(db);
+    // let num = db.modifiedCount
+    // if(num > 0){
+    //     res.send("profile updated")
+    // }
+    // res.send("unable to update")
     
+})
+// retrieve all data
+server.get("/profile", async(req, res)=>{
+    const db = await client.db(dbName).collection(table).findOne()
+    res.send(db)
 })
 // delete route
 server.get("/deleteprofile", async(req, res)=>{
     res.render("del")
     })
 server.post("/deleteprofile", async(req, res)=>{
-    const email = req.query.email
+    const email = req.body.email
     const db = await client.db(dbName).collection(table).deleteOne({email:email})
     let num = db.deletedCount
     if(num > 0){
