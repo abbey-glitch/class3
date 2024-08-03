@@ -9,9 +9,13 @@ const session = require("express-session");
 const path = require("path");
 const dotenv = require("dotenv");
 dotenv.config();
+// local middlewares
+const authenticate = require("./middleware/authenticate");
 const user = require("./Model/User");
-// const Admin = require("Model/Admin");
-const Userfeed = require("./Model/Userfeed");
+const admin = require("./Model/Admin");
+const userfeed = require("./Model/Userfeed");
+// const category = require("./Model/Category") 
+const blog = require("./Model/Blog")
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 // use middleware
@@ -28,6 +32,7 @@ server.use(
     })
 );
 // set engine
+server.set("views", path.join(__dirname, "views"));
 server.set("view engine", "ejs");
 // read .env file
 const PORT = process.env.PORT || 3000;
@@ -82,14 +87,17 @@ server.post("/registeruser", async (req, res) => {
     if (!name || !email || !password || !cpassword) {
         return res.status(422).json({ error: "please fill the data" });
     }
+    
     const userExist = await user.findOne({ email: email });
     if(userExist){
         return res.status(422).json({ error: "user already exist" });
     }else{
+        // create a new user
+        passhash = await bcrypt.hash(password, 12);
         const profile = {
             name: name,
             email: email,
-            password: password,
+            password: passhash,
             cpassword: cpassword
         }
         const feed = await user.create(profile);
@@ -97,40 +105,138 @@ server.post("/registeruser", async (req, res) => {
         // send mail
        const delivered = main("abiodunonaolapi@gmail.com", email);
        if(delivered){
-            res.status(201).json({ message: "user registered successfully",
-            status: "mail delivered successfully"
-             });
+            res.status(201).redirect("/login");
        }else{
             res.status(500).json({ error: "something went wrong" });
        }    
     }
 })
+
+
+// login the user
+server.post("/userlogin", (req, res) => {
+    const email = req.body.email.trim();
+    const password = req.body.password.trim();
+    if (!email || !password) {
+        return res.status(422).json({ error: "please fill the data" });
+    }
+    user.findOne({ email: email }).then((savedUser) => {
+        if (savedUser["email"] == email) {
+            bcrypt.compare(password, savedUser.password).then((doMatch) => {
+                if (doMatch) {
+                    const token = jwt.sign({ _id: savedUser._id }, "secretkey");
+                    const { _id, name, email } = savedUser;
+                    res.cookie("token", token, {
+                        httpOnly: true
+                    })
+                    req.session.user = token
+                    res.redirect("/services");
+                    // return res.json({ token, user: { _id, name, email } });
+                } else {
+                    return res.status(422).json({ error: "invalid email or password" });
+                }
+            });
+        }
+       
+    });
+})
 // submit feedback from users
 server.get("/contact", (req, res) => {
     res.render("contact");
 })
+// get service route
+server.get("/services", authenticate, (req, res) => {
+    
+    if(res.cookie("token")){
+        res.render("services");
+    }else{
+        res.redirect("/login");
+    } 
+})
+// create a project route
+server.get("/projects", (req, res) => {
+    res.render("projects");
+})
+// end the project route
 server.post("/contact", async (req, res) => {
     console.log(req.body)
     res.send("Thank you for your feedback");
-    // const name = req.body.name
-    // const email = req.body.email
-    // const message = req.body.message
-    // console.log(name, email, message);
-    // if (!name || !email || !message) {
-    //     return res.status(422).json({ error: "please fill the data" });
-    // }
-    // const feed = await Userfeed.create({
-    //     name: name,
-    //     email: email,
-    //     message: message
-    // });
-    // return jsonify({name:name, email:email, message:message});
-    // res.status(201).json({ message: "Feedback Submitted Successfully" });
 })
 // load the users page
-server.get("/users", (req, res) => {
+server.get("/", (req, res) => {
     res.render("index")
 });
+
+server.get("/blog", (req, res) => {
+    res.render("blog")
+})
+server.get("/about", (req, res) => {
+    res.render("about")
+
+})
+
+/**
+ * this contains the admins logics
+ */
+// login the register admin and route to dashboard
+server.get("/login", (req, res) => {
+    res.render("login")
+})
+// reg admin
+server.post("/registeradmin", async(req, res) => {
+            // Create a new admin user
+            // Check if an admin user already exists
+        const existingAdmin = await admin.findOne({ email: "james@james.com" });
+        if (existingAdmin) {
+            console.log("Admin user already exists");
+            return;
+        }
+
+        // Create a new admin user
+    const newAdmin = new admin({
+        email: "abiodunonaolapi@gmailcom",
+        password: "password" // Change this to a secure password
+    });
+    await newAdmin.save();
+    console.log("Admin user registered successfully");
+})
+
+// end the process
+server.post("/login", async (req, res) => {
+    const email = req.body.email.trim();
+    const password = req.body.password.trim();
+    if (!email || !password) {
+        return res.status(422).json({ error: "please fill the data" }); 
+    }
+    const adminUser = await admin.findOne({ email: email });
+    console.log(adminUser);
+})
+// end the login
+// create a route for the dashbard
+server.get("/dashboard", (req, res) => {
+    res.render("dashboard")
+})
+
+server.post("/adminblog", async(req, res)=>{
+    const blogtitle = req.body.title.trim()
+    const blogcategory = req.body.category.trim()
+    const blogdescription = req.body.description.trim()
+    const blogauthor = req.body.blogauthor.trim()
+    const authorcontact = req.body.number.trim()
+    if(!blogtitle || !blogdescription || !blogauthor || !authorcontact || !blogcategory){
+        res.send({message:"fill the required field"})
+    }
+    // check database for existing data
+    const feed = await blog.findOne({blogtitle:blogtitle})
+    if(feed){
+        return res.send("blog exist")
+    }
+    let blogContent = {blogtitle, blogcategory, blogdescription, blogauthor, authorcontact}
+    newBlog = blog.create(blogContent)
+    if(newBlog){
+        res.send("blog content created")
+    }
+})
 // create a database connection
 const db = mongoose.connection;
 // check database error
