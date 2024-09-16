@@ -2,7 +2,7 @@ let main = document.getElementById("main");
 let createBlog = document.getElementById("createBlog");
 createBlog.addEventListener("click", (e) => {
     e.preventDefault();
-    main.innerHTML = `<form method="POST" id="blogForm" action="/adminblog">
+    main.innerHTML = `<form method="POST" id="blogForm" enctype="multipart/form-data" action="/adminblog">
         <div class="mb-3">
             <label for="title" class="form-label">Title</label>
             <input type="text" class="form-control" id="title" placeholder="Enter blog title" name="title">

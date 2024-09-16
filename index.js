@@ -1,4 +1,5 @@
 const express = require("express");
+// import { v2 as cloudinary } from 'cloudinary';
 const server = express();
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -6,7 +7,9 @@ const bodyParser = require("body-parser");
 const nodemailer = require("nodemailer");
 const cookieParser = require("cookie-parser");
 const session = require("express-session");
+const multer = require('multer');
 const path = require("path");
+const cloudinary = require("cloudinary").v2;
 const dotenv = require("dotenv");
 dotenv.config();
 // local middlewares
@@ -31,13 +34,19 @@ server.use(
         saveUninitialized: true,
     })
 );
+// config cloudinary
+cloudinary.config({ 
+    cloud_name: 'doaqrbuxc', 
+    api_key: '152229312993198', 
+    api_secret: 'lzwf-9ewt3PSFOVBqewUc_Px8s4' // Click 'View Credentials' below to copy your API secret
+});
 // set engine
 server.set("views", path.join(__dirname, "views"));
 server.set("view engine", "ejs");
 // read .env file
 const PORT = process.env.PORT || 3000;
-const DB_URL = process.env.DB_URL;
-const DB_NAME = process.env.DB_NAME;
+// const DB_URL = process.env.DB_URL;
+// const DB_NAME = process.env.DB_NAME;
 // end 
 // database connection
 const connectDB = require("./config/dbcon");
@@ -59,7 +68,19 @@ const transporter = nodemailer.createTransport({
       pass: apppwd,
     },
   });
-  
+// img path
+const img = path.join(__dirname, 'public/img/uploaded')
+//   image upload
+const storage = multer.diskStorage({
+    destination: function (req, file, callback) {
+      callback(null, img);
+    },
+    filename: function (req, file, callback) {
+      callback(null, file.originalname);
+    },
+});
+const upload = multer({ storage: storage });
+
   // async..await is not allowed in global scope, must use a wrapper
   async function main(senderemail, receiveremail) {
     // send mail with defined transport object
@@ -76,7 +97,6 @@ const transporter = nodemailer.createTransport({
     // Message sent: <d786aa62-4e0a-070a-47ed-0b0666549519@ethereal.email>
   }
 // end mail
-
 
 server.post("/registeruser", async (req, res) => {
     const name = req.body.name.trim();
@@ -172,7 +192,6 @@ server.get("/blog", (req, res) => {
 })
 server.get("/about", (req, res) => {
     res.render("about")
-
 })
 
 /**
@@ -217,25 +236,37 @@ server.get("/dashboard", (req, res) => {
     res.render("dashboard")
 })
 
-server.post("/adminblog", async(req, res)=>{
+server.post("/adminblog", upload.single("imgupload"), async(req, res)=>{
     const blogtitle = req.body.title.trim()
     const blogcategory = req.body.category.trim()
     const blogdescription = req.body.description.trim()
     const blogauthor = req.body.blogauthor.trim()
     const authorcontact = req.body.number.trim()
-    if(!blogtitle || !blogdescription || !blogauthor || !authorcontact || !blogcategory){
-        res.send({message:"fill the required field"})
+    const blogimgPath = req.file.path
+    console.log(blogimgPath);  
+    console.log(upload);
+    try{
+        const result = await cloudinary.uploader.upload(blogimgPath, {
+            folder:"batch5_construct"
+        })
+        const blogimg = result['secure_url']
+        if(!blogtitle || !blogdescription || !blogauthor || !authorcontact || !blogcategory){
+            res.send({message:"fill the required field"})
+        }
+        // check database for existing data
+        const feed = await blog.findOne({blogtitle:blogtitle})
+        if(feed){
+            return res.send("blog exist")
+        }
+        let blogContent = {blogtitle, blogimg, blogcategory, blogdescription, blogauthor, authorcontact}
+        const newBlog = blog.create(blogContent)
+        if(newBlog){
+            res.send("blog content created")
+        }
+    }catch(error){
+        console.log(error);
     }
-    // check database for existing data
-    const feed = await blog.findOne({blogtitle:blogtitle})
-    if(feed){
-        return res.send("blog exist")
-    }
-    let blogContent = {blogtitle, blogcategory, blogdescription, blogauthor, authorcontact}
-    newBlog = blog.create(blogContent)
-    if(newBlog){
-        res.send("blog content created")
-    }
+   
 })
 // create a database connection
 const db = mongoose.connection;
